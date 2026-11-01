@@ -52,7 +52,7 @@ def main():
         g.text(i - 0.18, hyp + 0.01, f"{hyp:{fmt}}", ha="center")
         g.text(i + 0.18, base + 0.01, f"{base:{fmt}}\n({base_name})", ha="center", va="bottom", fontsize=8.5)
     g.set(xticks=x, xticklabels=[q[0] for q in groups], ylim=(0, 0.65),
-          title="Hyperbolic geometry did not beat simple baselines")
+          title="Hyperbolic models: not yet above simple baselines (in progress)")
     g.legend(loc="upper right", frameon=False)
     g.grid(axis="y", alpha=0.3)
 

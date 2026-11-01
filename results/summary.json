@@ -14,6 +14,16 @@
     "gap_blocks_pct_non_recipe": 63.4,
     "gap_blocks_pct_other_recipe": 36.6
   },
+  "waiting_before_pause": {
+    "_source": "analysis/pause_resume/results.json (assistant labels) and analysis/pause_resume/validation/compare_results.json (hand check)",
+    "definition": "share with >= 1 waiting-type action among the last 3 recipe narrations; baseline = 400 random ordinary 3-narration stretches",
+    "assistant_labels": {"pauses": 0.268, "ordinary_stretches": 0.060, "ratio": 4.5},
+    "hand_check": {"sentences": 46, "unsure_left_out": 4, "agreement": 0.652, "cohen_kappa": 0.34,
+                   "assistant_waiting_also_waiting_for_me": [9, 25], "my_waiting_also_found_by_assistant": [9, 9]},
+    "corrected_to_my_labels": {"pauses": 0.134, "ordinary_stretches": 0.019,
+                               "difference_points": 11.5, "difference_ci95": [3.4, 17.4]},
+    "difference_range_over_definitions_points": [9.8, 18.8]
+  },
   "llm_pause_pilot": {
     "_source": "analysis/llm_pause_pilot/report.md (analyze.py over 1658 answers, run 2.1 h)",
     "model": "qwen3:8b via Ollama, temperature 0, thinking off, JSON schema output",

@@ -4,6 +4,7 @@ pandas==2.3.3
 scipy==1.17.1
 scikit-learn==1.9.1
 matplotlib==3.11.2
+openpyxl==3.1.5  # label sheet for the waiting check only
 torch==2.11.0
 transformers==5.17.0
 # LLM pilot only: Ollama (https://ollama.com) with `ollama pull qwen3:8b`
