@@ -1,0 +1,9 @@
+# Python 3.11 (versions used for the results; numpy/pandas/scipy were installed with conda)
+numpy==2.4.6
+pandas==2.3.3
+scipy==1.17.1
+scikit-learn==1.9.1
+matplotlib==3.11.2
+torch==2.11.0
+transformers==5.17.0
+# LLM pilot only: Ollama (https://ollama.com) with `ollama pull qwen3:8b`

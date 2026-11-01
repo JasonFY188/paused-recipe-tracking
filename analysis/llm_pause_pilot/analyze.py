@@ -1,0 +1,165 @@
+﻿"""
+analysis/llm_pause_pilot/analyze.py
+Scores results.jsonl and writes report.md (numbers, figures, failure examples). Called automatically at the end of
+pilot.py; can be rerun any time (it reads whatever has finished).
+
+Correct (main):  point A (middle of the gap): the paused recipe R is given state "paused"
+                 point B (first line after coming back): R is given state "active"
+Also:            next recipe == truth (A: the first recipe block after the query line; B: R); at B "active or next"
+One-line rule:   the most recent recipe in the past lines' blocks (excluding the query line's own blocks) is the paused
+                 one (A) / the one continued (B). It uses the true block labels of the past.
+Missing answers or a missing R count as wrong.
+"""
+import json
+import pathlib
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+HERE = pathlib.Path(__file__).resolve().parent
+FIG = HERE / "figures"
+
+
+def md(t):
+    """DataFrame -> markdown table (index included), without the optional tabulate package"""
+    t = t.reset_index()
+    t.columns = [" / ".join(map(str, c)) if isinstance(c, tuple) else str(c) for c in t.columns]
+    out = ["| " + " | ".join(t.columns) + " |", "|" + "---|" * len(t.columns)]
+    out += ["| " + " | ".join(str(v) for v in row) + " |" for row in t.itertuples(index=False)]
+    return "\n".join(out)
+
+
+def wilson(k, n, z=1.96):
+    if n == 0:
+        return "-"
+    p = k / n
+    d = 1 + z * z / n
+    c = (p + z * z / (2 * n)) / d
+    h = z * np.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d
+    return f"{100 * p:.1f}% ({max(0.0, 100 * (c - h)):.0f}-{min(100.0, 100 * (c + h)):.0f})"
+
+
+def load():
+    cases = pd.read_pickle(HERE / "data" / "cases.pkl").set_index("case")
+    rows = []
+    for l in open(HERE / "results.jsonl", encoding="utf-8"):
+        try:
+            d = json.loads(l)
+        except json.JSONDecodeError:
+            continue
+        c = cases.loc[d["case"]]
+        ans = d.get("answer") or {}
+        rec = {r["id"]: r for r in ans.get("recipes", []) if isinstance(r, dict) and "id" in r}
+        r = rec.get(c.recipe_id, {})
+        st, conf = r.get("state"), r.get("confidence")
+        nxt, nconf = ans.get("next_recipe"), ans.get("next_confidence")
+        ok = (st == "paused") if c.point == "A" else (st == "active")
+        rows.append(dict(case=d["case"], condition=d["condition"], point=c.point, participant=c.participant,
+                         recipe=c.recipe_id, recipe_name=c.recipe_name, n_gap_narr=c.n_gap_narr, gap_s=c.gap_s,
+                         gap_other=c.gap_has_other_recipe, flag=c.flag, n_shown=d.get("n_shown"), n_dropped=d.get("n_dropped"),
+                         seconds=d.get("seconds"), prompt_tokens=d.get("prompt_tokens"), parsed=bool(ans), r_given=bool(r),
+                         state=st, conf=conf, evidence=r.get("evidence"), next=nxt, next_conf=nconf, ok=bool(ok),
+                         next_ok=nxt == c.true_next, active_or_next=bool(ok or nxt == c.recipe_id),
+                         n_paused=sum(x.get("state") == "paused" for x in rec.values()),
+                         rule_ok=c.rule_recipe == c.recipe_id, error=d.get("error")))
+    return pd.DataFrame(rows), cases
+
+
+def reliability(df, path):
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4.2))
+    eces = {}
+    for ax, cond in zip(axes, ("full", "last10")):
+        g = df[(df.condition == cond) & df.conf.notna()]
+        bins = np.linspace(0, 1, 11)
+        cf = g.conf.astype(float).clip(0, 1).values
+        okv = g.ok.values
+        idx = np.clip(np.digitize(cf, bins) - 1, 0, 9)
+        acc = [okv[idx == b].mean() if (idx == b).any() else np.nan for b in range(10)]
+        cnt = [int((idx == b).sum()) for b in range(10)]
+        conf = [cf[idx == b].mean() if (idx == b).any() else np.nan for b in range(10)]
+        ece = sum(n * abs(a - c) for n, a, c in zip(cnt, acc, conf) if n) / max(sum(cnt), 1)
+        eces[cond] = round(float(ece), 3)
+        ax.bar((bins[:-1] + bins[1:]) / 2, np.nan_to_num(acc), width=0.09, color="#2a78d6", alpha=0.8)
+        ax.plot([0, 1], [0, 1], "--", color="#888")
+        for x, n in zip((bins[:-1] + bins[1:]) / 2, cnt):
+            if n:
+                ax.text(x, 0.02, str(n), ha="center", fontsize=7, rotation=90)
+        ax.set(title=f"{cond}: ECE {ece:.3f}", xlabel="stated confidence of R's state", ylabel="share correct",
+               xlim=(0, 1), ylim=(0, 1))
+    fig.suptitle("Reliability of the LLM's confidence for the paused recipe (A and B pooled; numbers = cases per bin)",
+                 x=0.01, ha="left")
+    fig.tight_layout(); fig.savefig(path, dpi=130); plt.close(fig)
+    return eces
+
+
+def main():
+    FIG.mkdir(exist_ok=True)
+    df, cases = load()
+    status = json.load(open(HERE / "status.json")) if (HERE / "status.json").exists() else {}
+    L = []
+    w = L.append
+    w("# Can a local LLM keep track of a paused recipe? (pilot)\n")
+    w(f"*Auto-generated by `analyze.py` from `results.jsonl` ({len(df)} answers; run status: {status}). "
+      "Claude will review the wording.*\n")
+    tab = []
+    for pt in ("A", "B"):
+        for cond in ("full", "last10"):
+            g = df[(df.point == pt) & (df.condition == cond)]
+            if not len(g):
+                continue
+            tab.append(dict(point=pt, condition=cond, n=len(g), main=wilson(g.ok.sum(), len(g)),
+                            next_ok=wilson(g.next_ok.sum(), len(g)),
+                            active_or_next=wilson(g.active_or_next.sum(), len(g)) if pt == "B" else "-",
+                            rule=wilson(g.rule_ok.sum(), len(g)), parsed=f"{100 * g.parsed.mean():.0f}%",
+                            sec_median=f"{g.seconds.median():.1f}", truncated=int((g.n_dropped > 0).sum())))
+    T = pd.DataFrame(tab)
+    w("## Main result\n")
+    w("Main = A: R called **paused**; B: R called **active**. Brackets: 95% interval.\n")
+    w("| point | history | cases | LLM main | LLM next recipe correct | B: active or next = R | one-line rule | JSON ok | median s | history cut |")
+    w("|---|---|---|---|---|---|---|---|---|---|")
+    for r in T.itertuples():
+        w(f"| {r.point} | {r.condition} | {r.n} | {r.main} | {r.next_ok} | {r.active_or_next} | {r.rule} | {r.parsed} | "
+          f"{r.sec_median} | {r.truncated} |")
+    w("")
+    w("### What the LLM says R is (share of answers)\n")
+    sd = df.groupby(["point", "condition"]).state.value_counts(normalize=True).unstack(fill_value=0).round(3)
+    w(md(sd))
+    w("")
+    w("### By gap length (narrations inside the gap), main measure\n")
+    df["gap_bin"] = pd.cut(df.n_gap_narr, [-1, 10, 30, 100, 10 ** 6], labels=["<=10", "11-30", "31-100", ">100"])
+    gb = df.groupby(["point", "condition", "gap_bin"], observed=True).ok.agg(["mean", "size"]).round(3)
+    w(md(gb))
+    w("")
+    w("### By person, main measure (full history)\n")
+    pp = df[df.condition == "full"].groupby(["participant", "point"]).ok.agg(["mean", "size"]).round(3)
+    w(md(pp))
+    w("")
+    eces = reliability(df, FIG / "reliability.png")
+    w("### Calibration\n")
+    w(f"![reliability](figures/reliability.png)\n\nECE: {eces}. Distinct confidence values used: "
+      f"{sorted(df.conf.dropna().astype(float).round(2).unique().tolist())[:15]}\n")
+    w("### Time per query\n")
+    w(md(df.groupby("condition")[["seconds", "prompt_tokens"]].describe().round(1)))
+    w("")
+    fails = df[(df.condition == "full") & ~df.ok]
+    pick = fails.sample(min(8, len(fails)), random_state=0) if len(fails) else fails
+    w("## Failure examples (full history, random sample, seed 0)\n")
+    for r in pick.itertuples():
+        c = cases.loc[r.case]
+        truth = "paused" if r.point == "A" else "active"
+        w(f"**{r.case}**: R = {r.recipe} {r.recipe_name}, point {r.point} (true state: {truth}); gap {r.n_gap_narr} narrations.  ")
+        w(f"LLM: R = **{r.state}** (confidence {r.conf}, evidence {r.evidence!r}); next = {r.next}.  ")
+        w("Last lines before the query:  ")
+        for t, x in c.history[-4:]:
+            w(f"- `[{int(t // 60):02d}:{int(t % 60):02d}] {x}`")
+        w("")
+    df.to_csv(HERE / "scored.csv", index=False)
+    open(HERE / "report.md", "w", encoding="utf-8").write("\n".join(L))
+    print("\n".join(L[:30]))
+
+
+if __name__ == "__main__":
+    main()

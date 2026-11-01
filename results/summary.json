@@ -1,0 +1,57 @@
+{
+  "_about": "Aggregate numbers only (no HD-EPIC text or per-item data). Each block names the output file it was copied from; those files are produced by the scripts under analysis/ and are not part of this repository.",
+  "pause_resume_events": {
+    "_source": "analysis/pause_resume/results.json (pause_resume.py)",
+    "events": 422,
+    "people_with_events": 9,
+    "people_total": 9,
+    "recipes_with_events": 57,
+    "recipes_total": 69,
+    "gap_seconds_median": 40.5,
+    "gap_narrations_median": 18.0,
+    "events_resumed_in_another_video": 81,
+    "gap_blocks": 734,
+    "gap_blocks_pct_non_recipe": 63.4,
+    "gap_blocks_pct_other_recipe": 36.6
+  },
+  "llm_pause_pilot": {
+    "_source": "analysis/llm_pause_pilot/report.md (analyze.py over 1658 answers, run 2.1 h)",
+    "model": "qwen3:8b via Ollama, temperature 0, thinking off, JSON schema output",
+    "A_middle_of_pause": {
+      "cases": 414,
+      "llm_says_paused_full_history": {"rate": 0.041, "ci95": [0.03, 0.06]},
+      "llm_says_paused_last10": {"rate": 0.046, "ci95": [0.03, 0.07]},
+      "rule_with_true_past_labels": {"rate": 0.903, "ci95": [0.87, 0.93]},
+      "llm_answer_share_full_history": {"active": 0.114, "finished": 0.517, "not_started": 0.329, "paused": 0.041}
+    },
+    "B_at_resume": {
+      "cases": 415,
+      "llm_says_active_full_history": {"rate": 0.193, "ci95": [0.16, 0.23]},
+      "llm_says_active_last10": {"rate": 0.173, "ci95": [0.14, 0.21]},
+      "rule_with_true_past_labels": {"rate": 0.689, "ci95": [0.64, 0.73]}
+    },
+    "json_valid": 1.0,
+    "ece_full": 0.86,
+    "ece_last10": 0.883,
+    "median_seconds_per_query_full": 4.9
+  },
+  "action_radius_recheck": {
+    "_source": "analysis/clean_recheck/report.md and ab_report.md (54 + 27 trained models, LOPO 9 people)",
+    "metric": "Spearman rho between an action's distance from the origin and its specificity in the held-out person (actions with >= 3 held-out uses)",
+    "hyperbolic_base_K0.05_w1.0": 0.28,
+    "hyperbolic_setting_A_K0.02_w0.1_3seeds": 0.34,
+    "training_counts_baseline": 0.51,
+    "setting_A_minus_euclidean": 0.11,
+    "rare_actions_1to9_uses": {"hyperbolic_A": 0.17, "training_counts": 0.20}
+  },
+  "object_tree": {
+    "_source": "analysis/object_hierarchy/feasibility.md and analysis/hyperbolic_tree/report.md (81 runs: 9 people x 3 seeds x 3 models)",
+    "wrong_top1_in_true_home_fixture": {"models": [0.13, 0.16], "random_wrong_guess": [0.12, 0.13]},
+    "stage1_tree_embedding_MAP": 0.98,
+    "exact_top1": {"flat_softmax": 0.098, "hyperbolic_two_stage": 0.081},
+    "hyperbolic_minus_flat_paired": {"mean": -0.015, "ci95": [-0.030, -0.001]},
+    "hyperbolic_minus_euclidean_exact_top1": -0.002,
+    "top1_ece": {"hyperbolic": 0.009, "flat": 0.039, "euclidean": 0.059},
+    "radius_auroc_for_correct_top1": {"hyperbolic": 0.54, "euclidean": 0.55}
+  }
+}

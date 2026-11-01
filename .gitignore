@@ -1,0 +1,28 @@
+# HD-EPIC annotations and everything derived from them: never commit (see README "データ / Data")
+annotations/
+**/data/
+**/tables/
+**/runs/
+**/diag_runs/
+**/ab_runs/
+**/models/
+**/cache/
+**/corrected/
+scripts/intention_data*/
+scripts/intention_runs/
+scripts/intention_eval/
+*.pkl
+*.pt
+*.npz
+*.jsonl
+*.csv
+*.xlsx
+# per-analysis outputs (reports and logs quote narrations)
+analysis/**/*.md
+analysis/**/*.json
+analysis/**/*.txt
+analysis/**/figures/
+# Python
+__pycache__/
+*.py[cod]
+.env
